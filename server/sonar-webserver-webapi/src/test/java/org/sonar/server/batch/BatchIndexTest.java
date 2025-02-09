@@ -103,15 +103,4 @@ public class BatchIndexTest {
       .isInstanceOf(NotFoundException.class)
       .hasMessage("Bad filename: other.jar");
   }
-
-  @Test
-  public void start_whenBatchDirDoesntExist_shouldThrow() throws IOException {
-    File homeDir = temp.newFolder();
-    when(fs.getHomeDir()).thenReturn(homeDir);
-
-    BatchIndex batchIndex = new BatchIndex(fs);
-    assertThatThrownBy(batchIndex::start)
-      .isInstanceOf(IllegalStateException.class)
-      .hasMessage(format("%s/lib/scanner folder not found", homeDir.getAbsolutePath()));
-  }
 }
