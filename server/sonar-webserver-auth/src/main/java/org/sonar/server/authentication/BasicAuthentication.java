@@ -19,8 +19,12 @@
  */
 package org.sonar.server.authentication;
 
+import java.time.Instant;
 import java.util.Base64;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.sonar.api.server.http.HttpRequest;
 import org.sonar.db.user.UserDto;
 import org.sonar.server.authentication.event.AuthenticationEvent;
@@ -39,8 +43,25 @@ import static org.sonar.server.authentication.event.AuthenticationEvent.Source;
  * @see CredentialsAuthentication for standard login/password authentication
  * @see UserTokenAuthentication for user access token
  */
-public class BasicAuthentication {
 
+
+public class BasicAuthentication {
+   static class FailedLoginAttempt {
+    int attempts;
+    Instant lastFailedAttempt;
+
+    public int getAttempts() {
+      return attempts;
+    }
+
+    FailedLoginAttempt() {
+      this.attempts = 1;
+      this.lastFailedAttempt = Instant.now();
+    }
+  }
+  static final Map<String, FailedLoginAttempt> failedLoginAttempts = new ConcurrentHashMap<>();
+  private static final int MAX_FAILED_ATTEMPTS = 5;
+  private static final long BLOCK_TIME_SECONDS = 300; // 5 minutes
   private final CredentialsAuthentication credentialsAuthentication;
   private final UserTokenAuthentication userTokenAuthentication;
 
@@ -87,11 +108,19 @@ public class BasicAuthentication {
   }
 
   private UserDto authenticate(Credentials credentials, HttpRequest request) {
+    if (isUserBlocked(credentials.getLogin())) {
+      throw AuthenticationException.newBuilder()
+              .setSource(AuthenticationEvent.Source.local(AuthenticationEvent.Method.SONARQUBE_TOKEN))
+              .setMessage("User is blocked")
+              .build();
+    }
     if (credentials.getPassword().isEmpty()) {
       Optional<UserAuthResult> userAuthResult = userTokenAuthentication.authenticate(request);
       if (userAuthResult.isPresent()) {
+        resetFailedAttempts(credentials.getLogin());
         return userAuthResult.get().getUserDto();
       } else {
+        registerFailedAttempt(credentials.getLogin());
         throw AuthenticationException.newBuilder()
           .setSource(AuthenticationEvent.Source.local(AuthenticationEvent.Method.SONARQUBE_TOKEN))
           .setMessage("User doesn't exist")
@@ -100,5 +129,36 @@ public class BasicAuthentication {
     }
     return credentialsAuthentication.authenticate(credentials, request, Method.BASIC);
   }
+
+   void registerFailedAttempt(String username) {
+    failedLoginAttempts.compute(username, (key, attempt) -> {
+      if (attempt == null) {
+        return new FailedLoginAttempt();
+      } else {
+        attempt.attempts++;
+        attempt.lastFailedAttempt = Instant.now();
+        return attempt;
+      }
+    });
+    System.out.println(String.format("User '%s' has %d failed attempts.", username, failedLoginAttempts.get(username).attempts));
+  }
+
+  void resetFailedAttempts(String username) {
+    failedLoginAttempts.remove(username);
+  }
+
+  boolean isUserBlocked(String username) {
+    FailedLoginAttempt attempt = failedLoginAttempts.get(username);
+    if (attempt != null && attempt.attempts >= MAX_FAILED_ATTEMPTS) {
+      long timeElapsed = Instant.now().getEpochSecond() - attempt.lastFailedAttempt.getEpochSecond();
+      if (timeElapsed < BLOCK_TIME_SECONDS) {
+        return true;
+      } else {
+        resetFailedAttempts(username);
+      }
+    }
+    return false;
+  }
+
 
 }

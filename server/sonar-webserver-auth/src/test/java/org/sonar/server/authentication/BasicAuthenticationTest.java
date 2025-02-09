@@ -24,6 +24,7 @@ import java.util.Optional;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Spy;
 import org.sonar.api.server.http.HttpRequest;
 import org.sonar.db.DbTester;
 import org.sonar.db.user.UserDto;
@@ -37,12 +38,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.sonar.server.authentication.event.AuthenticationEvent.Method.BASIC;
 import static org.sonar.server.authentication.event.AuthenticationEvent.Method.SONARQUBE_TOKEN;
 import static org.sonar.server.authentication.event.AuthenticationEvent.Source;
@@ -70,7 +66,7 @@ public class BasicAuthenticationTest {
 
   private final AuthenticationEvent authenticationEvent = mock(AuthenticationEvent.class);
 
-  private final BasicAuthentication underTest = new BasicAuthentication(credentialsAuthentication, userTokenAuthentication);
+  private final BasicAuthentication underTest = spy(new BasicAuthentication(credentialsAuthentication, userTokenAuthentication));
 
   @Before
   public void before() {
@@ -124,8 +120,8 @@ public class BasicAuthenticationTest {
     when(request.getHeader(AUTHORIZATION_HEADER)).thenReturn("Basic " + toBase64(":" + A_PASSWORD));
 
     assertThatThrownBy(() -> underTest.authenticate(request))
-      .isInstanceOf(AuthenticationException.class)
-      .hasFieldOrPropertyWithValue("source", Source.local(BASIC));
+            .isInstanceOf(AuthenticationException.class)
+            .hasFieldOrPropertyWithValue("source", Source.local(BASIC));
 
     verifyNoInteractions(authenticationEvent);
   }
@@ -135,9 +131,9 @@ public class BasicAuthenticationTest {
     when(request.getHeader(AUTHORIZATION_HEADER)).thenReturn("Basic Invàlid");
 
     assertThatThrownBy(() -> underTest.authenticate(request))
-      .hasMessage("Invalid basic header")
-      .isInstanceOf(AuthenticationException.class)
-      .hasFieldOrPropertyWithValue("source", Source.local(BASIC));
+            .hasMessage("Invalid basic header")
+            .isInstanceOf(AuthenticationException.class)
+            .hasFieldOrPropertyWithValue("source", Source.local(BASIC));
   }
 
   @Test
@@ -158,9 +154,9 @@ public class BasicAuthenticationTest {
     when(request.getHeader(AUTHORIZATION_HEADER)).thenReturn("Basic " + toBase64("token:"));
 
     assertThatThrownBy(() -> underTest.authenticate(request))
-      .hasMessage("User doesn't exist")
-      .isInstanceOf(AuthenticationException.class)
-      .hasFieldOrPropertyWithValue("source", Source.local(SONARQUBE_TOKEN));
+            .hasMessage("User doesn't exist")
+            .isInstanceOf(AuthenticationException.class)
+            .hasFieldOrPropertyWithValue("source", Source.local(SONARQUBE_TOKEN));
 
     verifyNoInteractions(authenticationEvent);
     verify(request, times(0)).setAttribute(anyString(), anyString());
@@ -169,17 +165,97 @@ public class BasicAuthenticationTest {
   @Test
   public void does_not_authenticate_from_user_token_when_token_does_not_match_existing_user() {
     when(userTokenAuthentication.authenticate(request)).thenThrow(AuthenticationException.newBuilder()
-      .setSource(AuthenticationEvent.Source.local(AuthenticationEvent.Method.SONARQUBE_TOKEN))
-      .setMessage("User doesn't exist")
-      .build());
+            .setSource(AuthenticationEvent.Source.local(AuthenticationEvent.Method.SONARQUBE_TOKEN))
+            .setMessage("User doesn't exist")
+            .build());
     when(request.getHeader(AUTHORIZATION_HEADER)).thenReturn("Basic " + toBase64("token:"));
 
     assertThatThrownBy(() -> underTest.authenticate(request))
-      .hasMessageContaining("User doesn't exist")
-      .isInstanceOf(AuthenticationException.class)
-      .hasFieldOrPropertyWithValue("source", Source.local(SONARQUBE_TOKEN));
+            .hasMessageContaining("User doesn't exist")
+            .isInstanceOf(AuthenticationException.class)
+            .hasFieldOrPropertyWithValue("source", Source.local(SONARQUBE_TOKEN));
 
     verifyNoInteractions(authenticationEvent);
+  }
+
+  @Test
+  public void authenticate_shouldBlockUserAfterTooManyFailedAttempts() {
+    when(userTokenAuthentication.authenticate(request)).thenReturn(Optional.empty());
+    when(request.getHeader(AUTHORIZATION_HEADER)).thenReturn("Basic " + toBase64("token:"));
+
+    for (int i = 0; i < 5; i++) {
+      assertThatThrownBy(() -> underTest.authenticate(request))
+              .hasMessage("User doesn't exist")
+              .isInstanceOf(AuthenticationException.class)
+              .hasFieldOrPropertyWithValue("source", Source.local(SONARQUBE_TOKEN));
+    }
+    assertThatThrownBy(() -> underTest.authenticate(request))
+            .hasMessage("User is blocked")
+            .isInstanceOf(AuthenticationException.class)
+            .hasFieldOrPropertyWithValue("source", Source.local(SONARQUBE_TOKEN));
+
+
+    verifyNoInteractions(authenticationEvent);
+    verify(request, times(0)).setAttribute(anyString(), anyString());
+  }
+
+  @Test
+  public void authenticate_shouldResetFailedAttemptsOnSuccess() {
+    UserDto user = db.users().insertUser();
+    when(userTokenAuthentication.authenticate(request)).thenReturn(Optional.of(new UserAuthResult(user, new UserTokenDto().setName("my-token"), UserAuthResult.AuthType.TOKEN)));
+    when(request.getHeader(AUTHORIZATION_HEADER)).thenReturn("Basic " + toBase64("token:"));
+
+    Optional<UserDto> userAuthenticated = underTest.authenticate(request);
+
+    assertThat(userAuthenticated).isPresent();
+    assertThat(userAuthenticated.get().getLogin()).isEqualTo(user.getLogin());
+    verify(underTest, times(1)).resetFailedAttempts("token");
+  }
+
+  @Test
+  public void registerFailedAttempt_shouldIncreaseAttemptCount() {
+    String username = "testUser";
+
+    underTest.registerFailedAttempt(username);
+    assertThat(underTest.failedLoginAttempts.get(username).getAttempts()).isEqualTo(1);
+
+    underTest.registerFailedAttempt(username);
+    assertThat(underTest.failedLoginAttempts.get(username).getAttempts()).isEqualTo(2);
+  }
+
+  @Test
+  public void resetFailedAttempts_shouldRemoveUserEntry() {
+    String username = "testUser";
+
+    underTest.registerFailedAttempt(username);
+    assertThat(underTest.failedLoginAttempts.containsKey(username)).isTrue();
+
+    underTest.resetFailedAttempts(username);
+    assertThat(underTest.failedLoginAttempts.containsKey(username)).isFalse();
+  }
+
+  @Test
+  public void isUserBlocked_shouldReturnTrueWhenMaxAttemptsExceeded() {
+    String username = "testUser";
+
+    for (int i = 0; i < 5; i++) {
+      underTest.registerFailedAttempt(username);
+    }
+
+    assertThat(underTest.isUserBlocked(username)).isTrue();
+  }
+
+  @Test
+  public void isUserBlocked_shouldReturnFalseWhenTimeHasPassed() throws InterruptedException {
+    String username = "testUser";
+
+    for (int i = 0; i < 5; i++) {
+      underTest.registerFailedAttempt(username);
+    }
+
+    Thread.sleep((300 + 1) * 1000L);
+
+    assertThat(underTest.isUserBlocked(username)).isFalse();
   }
 
   private static String toBase64(String text) {
