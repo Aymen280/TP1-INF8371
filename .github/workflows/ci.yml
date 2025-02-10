@@ -9,47 +9,47 @@ on:
       - master
 
 jobs:
+  launch-sonarqube:
+    name: Start SonarQube
+    runs-on: ubuntu-latest
+    needs: build-and-test
 
-launch-sonarqube:
-  name: Start SonarQube
-  runs-on: ubuntu-latest
+    services:
+      sonarqube:
+        image: sonarqube:latest
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd="curl --fail http://localhost:9000/api/system/health || exit 1"
+          --health-interval=30s
+          --health-timeout=10s
+          --health-retries=10
+          --memory=4g
+        environment:
+          SONARQUBE_JAVA_OPTS: "-Xmx1024m"
 
-  services:
-    sonarqube:
-      image: sonarqube:latest
-      ports:
-        - 9000:9000
-      options: >-
-        --health-cmd="curl --fail http://localhost:9000/api/system/health || exit 1"
-        --health-interval=30s
-        --health-timeout=10s
-        --health-retries=10
-        --memory=4g
-      environment:
-        SONARQUBE_JAVA_OPTS: "-Xmx1024m"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-  steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Wait for SonarQube to be ready
+        run: |
+          echo "Waiting for SonarQube to be up..."
+          MAX_RETRIES=40
+          RETRIES=0
+          until curl -s http://localhost:9000/api/system/status | grep -q '"status":"UP"' || [ $RETRIES -eq $MAX_RETRIES ]; do
+            echo "SonarQube is not ready yet... retrying in 10s"
+            sleep 10
+            ((RETRIES++))
+          done
+          if [ $RETRIES -eq $MAX_RETRIES ]; then
+            echo "SonarQube did not start in time. Exiting."
+            exit 1
+          fi
+          echo "SonarQube is up and running!"
 
-    - name: Wait for SonarQube to be ready
-      run: |
-        echo "Waiting for SonarQube to be up..."
-        MAX_RETRIES=40
-        RETRIES=0
-        until curl -s http://localhost:9000/api/system/status | grep -q '"status":"UP"' || [ $RETRIES -eq $MAX_RETRIES ]; do
-          echo "SonarQube is not ready yet... retrying in 10s"
-          sleep 10
-          ((RETRIES++))
-        done
-        if [ $RETRIES -eq $MAX_RETRIES ]; then
-          echo "SonarQube did not start in time. Exiting."
-          exit 1
-        fi
-        echo "SonarQube is up and running!"
-
-    - name: Check SonarQube health
-      run: curl -s http://localhost:9000/api/system/health | jq .
+      - name: Check SonarQube health
+        run: curl -s http://localhost:9000/api/system/health | jq .
 
 
 
