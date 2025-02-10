@@ -27,7 +27,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build and Run Tests
-        run: ./gradlew build distZip assembleDist --stacktrace -x test
+        run: ./gradlew build -x test
 
   launch-sonarqube:
     name: Launch SonarQube
@@ -38,33 +38,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: List All Files in Workspace
-        run: ls -R . || echo "No files found!"
+      - name: List Build Directory Before Running
+        run: ls -R sonar-application/ || echo "No build directory found!"
 
-      - name: List Files in sonar-application
-        run: ls -R sonar-application || echo "No files found in sonar-application!"
-
-      - name: List Files in sonar-application
-        run: ls -R sonar-application/build/ || echo "No files found in sonar-application!"
-
-      - name: List Files in Build Directory
-        run: ls -R sonar-application/build/distributions/ || echo "No build directory found!"
-
-      - name: Extract SonarQube Distribution
-        run: |
-          ZIP_FILE=$(find sonar-application/build/distributions/ -name "*.zip" | head -n 1)
-          if [ -z "$ZIP_FILE" ]; then
-            echo "No ZIP file found! Exiting..."
-            exit 1
-          fi
-          echo "Extracting $ZIP_FILE..."
-          unzip "$ZIP_FILE" -d sonar-application/build/distributions/
+      - name: Grant Execution Permission
+        run: chmod +x sonar-application/src/main/assembly/bin/linux-x86-64/sonar.sh
 
       - name: Start SonarQube
         run: |
-          cd sonar-application/build/distributions/*/bin/linux-x86-64/
-          chmod +x sonar.sh
-          ./sonar.sh start
+          sonar-application/src/main/assembly/bin/linux-x86-64/sonar.sh start
 
       - name: Wait for SonarQube to be Ready
         run: |
@@ -83,4 +65,4 @@ jobs:
           echo "SonarQube is up and running!"
 
       - name: Display SonarQube Logs
-        run: cat sonar-application/build/distributions/*/logs/sonar.log || echo "No logs found!"
+        run: cat sonar-application/src/main/assembly/logs/sonar.log || echo "No logs found!"
