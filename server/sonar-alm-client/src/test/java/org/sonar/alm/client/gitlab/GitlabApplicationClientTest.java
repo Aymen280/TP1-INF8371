@@ -204,7 +204,7 @@ public class GitlabApplicationClientTest {
     String instanceUrl = gitlabUrl;
     assertThatThrownBy(() -> underTest.getBranches(instanceUrl, "pat", 12345L))
       .isInstanceOf(IllegalStateException.class)
-      .hasMessageContaining("Failed to connect to");
+      .hasMessageContaining("Failed to connect to ");
   }
 
   @Test
@@ -517,7 +517,7 @@ public class GitlabApplicationClientTest {
 
     assertThatThrownBy(() -> underTest.getProject(gitlabUrl, "token", 0L))
       .isInstanceOf(IllegalStateException.class)
-      .hasMessageContaining("Failed to connect to");
+      .hasMessageContaining("Failed to connect to ");
     assertThat(logTester.logs(Level.INFO).get(0))
       .contains("Gitlab API call to [" + server.url("/projects/0") + "] " +
         "failed with error message : [Failed to connect to " + server.getHostName());
@@ -541,7 +541,7 @@ public class GitlabApplicationClientTest {
 
     assertThatThrownBy(() -> underTest.searchProjects(gitlabUrl, "token", null, 1, 1))
       .isInstanceOf(IllegalStateException.class)
-      .hasMessageContaining("Failed to connect to");
+      .hasMessageContaining("Failed to connect to ");
     assertThat(logTester.logs(Level.INFO).get(0))
       .contains(
         "Gitlab API call to [" + server.url("/projects?archived=false&simple=true&membership=true&order_by=name&sort=asc&search=&page=1&per_page=1")

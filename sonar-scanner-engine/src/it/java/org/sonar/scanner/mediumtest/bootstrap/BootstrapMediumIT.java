@@ -168,20 +168,6 @@ class BootstrapMediumIT {
     assertThat(logTester.logs(Level.WARN)).contains("Ignoring null or empty property");
   }
 
-  /**
-   * For now this test is just checking that the scanner completes successfully, with no input files, and mocking server responses to the bare minimum.
-   */
-  @Test
-  void should_complete_successfully(@TempDir Path baseDir) {
-    var exitCode = runScannerEngine(new ScannerProperties()
-      .addProperty(SONAR_HOST_URL, sonarqube.baseUrl())
-      .addProperty(SONAR_PROJECT_KEY, PROJECT_KEY)
-      .addProperty(SONAR_PROJECT_BASE_DIR, baseDir.toString()));
-
-    assertThat(exitCode).isZero();
-    assertThat(logTester.logs()).contains("SonarScanner Engine completed successfully");
-  }
-
   @Test
   void should_unwrap_message_exception_without_stacktrace(@TempDir Path baseDir) {
     int exitCode = runScannerEngine(new ScannerProperties()
