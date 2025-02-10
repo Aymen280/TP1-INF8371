@@ -27,7 +27,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build and Run Tests
-        run: ./gradlew build
+        run: ./gradlew build test
 
   launch-sonarqube:
     name: Start SonarQube
