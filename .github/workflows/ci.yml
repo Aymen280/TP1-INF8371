@@ -32,7 +32,7 @@ jobs:
   launch-sonarqube:
     name: Start SonarQube
     runs-on: ubuntu-latest
-    needs: build-and-test  # Exécuter cette étape seulement après un build réussi
+    needs: build-and-test
 
     services:
       sonarqube:
