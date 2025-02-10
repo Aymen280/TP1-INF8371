@@ -50,13 +50,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Wait for SonarQube to be ready
+      - name: Set up Java 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build project
+        run: ./gradlew build -x test
+
+      - name: Start SonarQube via Gradle
+        run: ./gradlew sonar:server &
+
+      - name: Wait for SonarQube to be up
         run: |
-          echo "Waiting for SonarQube to be up..."
-          until curl -s http://localhost:9000/api/system/status | grep -q '"status":"UP"'; do
-            echo "Still waiting..."
+          echo "Waiting for SonarQube to start..."
+          MAX_RETRIES=30  # Timeout après 2min30s (5s * 30)
+          RETRIES=0
+          until curl -s http://localhost:9000/api/system/status | grep -q '"status":"UP"' || [ $RETRIES -eq $MAX_RETRIES ]; do
+            echo "SonarQube is not ready yet... retrying in 5s"
             sleep 5
+            ((RETRIES++))
           done
+          if [ $RETRIES -eq $MAX_RETRIES ]; then
+            echo "SonarQube did not start in time. Exiting."
+            exit 1
+          fi
+          echo "SonarQube is up and running!"
 
       - name: Check SonarQube health
         run: curl -s http://localhost:9000/api/system/health | jq .
+
