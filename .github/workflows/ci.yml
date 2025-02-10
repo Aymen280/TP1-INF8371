@@ -38,27 +38,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install Docker (From Official Docker Repo)
+      - name: Extract SonarQube Distribution
         run: |
-          sudo apt-get update
-          sudo apt-get remove -y containerd.io docker docker-engine docker.io
-          sudo apt-get install -y ca-certificates curl gnupg
-          sudo install -m 0755 -d /etc/apt/keyrings
-          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo tee /etc/apt/keyrings/docker.asc > /dev/null
-          sudo chmod a+r /etc/apt/keyrings/docker.asc
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+          unzip sonar-application/build/distributions/*.zip -d sonar-application/build/distributions/
 
-      - name: Start SonarQube Container
+      - name: Start SonarQube
         run: |
-          docker run -d --name sonarqube \
-            -p 9000:9000 \
-            -e SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true \
-            -e SONAR_JDBC_URL="jdbc:postgresql://localhost:5432/sonarqube" \
-            -e SONAR_JDBC_USERNAME=sonar \
-            -e SONAR_JDBC_PASSWORD=sonar \
-            sonarqube:lts
+          cd sonar-application/build/distributions/*/bin/linux-x86-64/
+          chmod +x sonar.sh
+          ./sonar.sh start
 
       - name: Wait for SonarQube to be Ready
         run: |
@@ -77,4 +65,6 @@ jobs:
           echo "SonarQube is up and running!"
 
       - name: Display SonarQube Logs
-        run: docker logs sonarqube
+        run: |
+          cd sonar-application/build/distributions/*/logs
+          cat sonar.log || echo "No log file found"
