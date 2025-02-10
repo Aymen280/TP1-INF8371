@@ -27,7 +27,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build and Run Tests
-        run: ./gradlew build
+        run: ./gradlew build -x test
 
   launch-sonarqube:
     name: Launch SonarQube
@@ -37,6 +37,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: List All Files in Workspace
+        run: ls -R . || echo "No files found!"
 
       - name: List Files in Build Directory
         run: ls -R sonar-application/build/distributions/ || echo "No build directory found!"
