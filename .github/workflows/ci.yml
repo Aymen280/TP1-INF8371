@@ -27,7 +27,12 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build and Run Tests
-        run: ./gradlew build test
+        run: ./gradlew build test --info --stacktrace
+
+      - name: Afficher les tests exécutés
+        run: |
+          echo "Tests exécutés :"
+          cat build/reports/tests/test/index.html || echo "Fichier de rapport non trouvé"
 
   launch-sonarqube:
     name: Launch SonarQube
