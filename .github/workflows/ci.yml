@@ -27,35 +27,6 @@ jobs:
 
       - name: Grant execute permission for Gradle
         run: chmod +x gradlew
-        
-      - name: Attendre que SonarCloud termine l'analyse
-        run: sleep 30  
-      
-      - name: Check Cyclomatic Complexity
-        run: |
-          PROJECT_KEY="Damaris000_TP1-INF8371"
-      
-          echo "🔍 Vérification de la complexité pour le projet : $PROJECT_KEY"
-      
-          RESPONSE=$(curl -s "https://sonarcloud.io/api/measures/component?component=${PROJECT_KEY}&metricKeys=complexity" \
-            -H "Authorization: Bearer ${{ secrets.SONAR_TOKEN }}")
-      
-          echo "🔍 Réponse brute de SonarCloud : $RESPONSE"
-      
-          COMPLEXITY=$(echo "$RESPONSE" | jq -r '.component.measures[0].value')
-      
-          if [[ -z "$COMPLEXITY" || "$COMPLEXITY" == "null" ]]; then
-            echo "⚠️ ERREUR : Impossible de récupérer la complexité, valeur vide ou invalide !"
-            exit 1
-          fi
-      
-          echo "📊 Complexité détectée : $COMPLEXITY"
-      
-          if [[ "$COMPLEXITY" -gt 500 ]]; then
-            echo "🚨 ERREUR: Complexité trop élevée !"
-            exit 1
-          fi
-      
 
       - name: Build and Run Tests
         run: ./gradlew build test --info --stacktrace
@@ -64,7 +35,6 @@ jobs:
         run: |
           echo "Tests exécutés :"
           cat build/reports/tests/test/index.html || echo "Fichier de rapport non trouvé"
-      
 
   launch-sonarqube:
     name: Launch SonarQube
@@ -87,25 +57,42 @@ jobs:
       - name: Rebuild the Project
         run: ./gradlew build -x test --stacktrace
 
-      - name: List Build Directory After Rebuild
-        run: ls -R sonar-application/build/ || echo "No build directory found!"
-
-      - name: Extract SonarQube Distribution
+      - name: Run SonarQube Analysis
         run: |
-          ZIP_FILE=$(find sonar-application/build/distributions/ -name "*.zip" | head -n 1)
-          if [ -z "$ZIP_FILE" ]; then
-            echo "No ZIP file found! Exiting..."
+          ./gradlew sonarqube --stacktrace \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+            -Dsonar.organization=Damaris000 \
+            -Dsonar.projectKey=Damaris000_TP1-INF8371 \
+            -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**,**/*.test.js,**/*.spec.js,**/*.java"
+
+      - name: Attendre SonarCloud
+        run: sleep 30 
+
+      - name: Vérifier la Complexité Cyclomatique
+        run: |
+          PROJECT_KEY="Damaris000_TP1-INF8371"
+
+          echo "🔍 Vérification de la complexité pour le projet : $PROJECT_KEY"
+
+          RESPONSE=$(curl -s "https://sonarcloud.io/api/measures/component?component=${PROJECT_KEY}&metricKeys=complexity" \
+            -H "Authorization: Bearer ${{ secrets.SONAR_TOKEN }}")
+
+          echo "🔍 Réponse brute de SonarCloud : $RESPONSE"
+
+          COMPLEXITY=$(echo "$RESPONSE" | jq -r '.component.measures[0].value')
+
+          if [[ -z "$COMPLEXITY" || "$COMPLEXITY" == "null" ]]; then
+            echo "⚠️ ERREUR : Impossible de récupérer la complexité, valeur vide ou invalide !"
             exit 1
           fi
-          echo "Extracting $ZIP_FILE..."
-          unzip "$ZIP_FILE" -d sonar-application/build/distributions/
 
-      - name: Grant Execution Permission
-        run: chmod +x sonar-application/build/distributions/*/bin/linux-x86-64/sonar.sh
+          echo "📊 Complexité détectée : $COMPLEXITY"
 
-      - name: Start SonarQube
-        run: |
-          sonar-application/build/distributions/*/bin/linux-x86-64/sonar.sh start
+          if [[ "$COMPLEXITY" -gt 500 ]]; then
+            echo "🚨 ERREUR: Complexité trop élevée !"
+            exit 1
+          fi
 
       - name: Display SonarQube Logs
-        run: cat sonar-application/build/distributions/*/logs/sonar.log || echo "No logs found!"
+        run: cat build/sonar/logs/sonar.log || echo "No logs found!"
