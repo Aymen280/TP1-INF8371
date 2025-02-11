@@ -30,7 +30,7 @@ jobs:
         
       - name: Check Cyclomatic Complexity
         run: |
-          PROJECT_KEY="TP1-INF8371"  # Remplace par ton vrai Project Key SonarCloud
+          PROJECT_KEY="SONAR_TOKEN"
       
           echo "🔍 Vérification de la complexité pour le projet : $PROJECT_KEY"
       
