@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - master
+      - Feature/add-pipeline
   pull_request:
     branches:
       - master
+      - Feature/add-pipeline
 
 jobs:
   build-and-test:
