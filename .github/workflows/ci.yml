@@ -29,7 +29,12 @@ jobs:
         run: chmod +x gradlew
       
       - name: Run SonarQube Analysis
-        run: ./gradlew sonarqube --stacktrace
+        run: |
+          ./gradlew sonarqube --stacktrace \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+            -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**,**/*.test.js,**/*.spec.js,**/*.java" \
+            -Dsonar.java.binaries=target/classes
         env:
           SONAR_HOST_URL: https://sonarcloud.io
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
