@@ -30,9 +30,6 @@ jobs:
         
       - name: Check Cyclomatic Complexity
         run: |
-          PROJECT_KEY="SONAR_TOKEN"
-      
-          echo "🔍 Vérification de la complexité pour le projet : $PROJECT_KEY"
       
           RESPONSE=$(curl -s "https://sonarcloud.io/api/measures/component?component=${PROJECT_KEY}&metricKeys=complexity" \
             -H "Authorization: Bearer ${{ secrets.SONAR_TOKEN }}")
