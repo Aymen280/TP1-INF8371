@@ -31,10 +31,12 @@ jobs:
       - name: Run SonarQube Analysis
         run: |
           ./gradlew sonarqube --stacktrace \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
-            -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**,**/*.test.js,**/*.spec.js,**/*.java" \
-            -Dsonar.java.binaries=target/classes
+          -Dsonar.host.url=https://sonarcloud.io \
+          -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+          -Dsonar.organization=damaris000 \
+          -Dsonar.projectKey=d305883d57373544439a5bdd5f30b398bbf68ed7 \
+          -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**,**/*.test.js,**/*.spec.js,**/*.java" \
+          -Dsonar.java.binaries=target/classes
         env:
           SONAR_HOST_URL: https://sonarcloud.io
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
