@@ -77,3 +77,18 @@ jobs:
 
       - name: Display SonarQube Logs
         run: cat sonar-application/build/distributions/*/logs/sonar.log || echo "No logs found!"
+
+      - name: Run SonarQube Analysis
+        run: ./gradlew sonarqube --stacktrace
+        env:
+          SONAR_HOST_URL: https://sonarcloud.io
+          SONAR_TOKEN: ${{ secrets.d305883d57373544439a5bdd5f30b398bbf68ed7 }}
+
+      - name: Check Cyclomatic Complexity
+        run: |
+          COMPLEXITY=$(curl -s "https://sonarcloud.io/api/measures/component?component=d305883d57373544439a5bdd5f30b398bbf68ed7&metricKeys=complexity" -H "Authorization: Bearer ${{ secrets.d305883d57373544439a5bdd5f30b398bbf68ed7 }}" | jq -r '.component.measures[0].value')
+          echo "Complexité détectée : $COMPLEXITY"
+          if [ "$COMPLEXITY" -gt 500 ]; then
+            echo "ERREUR: La complexité dépasse la limite autorisée (500) !"
+            exit 1
+          fi
