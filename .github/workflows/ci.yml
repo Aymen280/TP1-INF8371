@@ -30,15 +30,29 @@ jobs:
         
       - name: Check Cyclomatic Complexity
         run: |
-          PROJECT_KEY="TP1-INF8371" 
-          COMPLEXITY=$(curl -s "https://sonarcloud.io/api/measures/component?component=${PROJECT_KEY}&metricKeys=complexity" -H "Authorization: Bearer ${{ secrets.SONAR_TOKEN }}" | jq -r '.component.measures[0].value')
-          
-          echo "📊 Complexité détectée : $COMPLEXITY"
-          
-          if [[ -z "$COMPLEXITY" || "$COMPLEXITY" == "null" || "$COMPLEXITY" -gt 500 ]]; then
-            echo "ERREUR: Complexité trop élevée !"
+          PROJECT_KEY="TP1-INF8371"  # Remplace par ton vrai Project Key SonarCloud
+      
+          echo "🔍 Vérification de la complexité pour le projet : $PROJECT_KEY"
+      
+          RESPONSE=$(curl -s "https://sonarcloud.io/api/measures/component?component=${PROJECT_KEY}&metricKeys=complexity" \
+            -H "Authorization: Bearer ${{ secrets.SONAR_TOKEN }}")
+      
+          echo "🔍 Réponse brute de SonarCloud : $RESPONSE"
+      
+          COMPLEXITY=$(echo "$RESPONSE" | jq -r '.component.measures[0].value')
+      
+          if [[ -z "$COMPLEXITY" || "$COMPLEXITY" == "null" ]]; then
+            echo "⚠️ ERREUR : Impossible de récupérer la complexité, valeur vide ou invalide !"
             exit 1
           fi
+      
+          echo "📊 Complexité détectée : $COMPLEXITY"
+      
+          if [[ "$COMPLEXITY" -gt 500 ]]; then
+            echo "🚨 ERREUR: La complexité dépasse la limite autorisée (500) !"
+            exit 1
+          fi
+      
 
       - name: Build and Run Tests
         run: ./gradlew build test --info --stacktrace
